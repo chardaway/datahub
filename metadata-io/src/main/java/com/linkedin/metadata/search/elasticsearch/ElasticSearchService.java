@@ -1,5 +1,7 @@
 package com.linkedin.metadata.search.elasticsearch;
 
+import static com.linkedin.metadata.search.utils.SearchUtils.applyDefaultSearchFlags;
+
 import com.linkedin.common.urn.Urn;
 import com.linkedin.metadata.browse.BrowseResult;
 import com.linkedin.metadata.browse.BrowseResultV2;
@@ -19,6 +21,7 @@ import com.linkedin.metadata.search.utils.ESUtils;
 import com.linkedin.metadata.search.utils.SearchUtils;
 import com.linkedin.metadata.shared.ElasticSearchIndexed;
 import com.linkedin.structured.StructuredPropertyDefinition;
+import io.datahubproject.metadata.context.OperationContext;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
@@ -34,7 +37,18 @@ import org.opensearch.action.search.SearchResponse;
 @RequiredArgsConstructor
 public class ElasticSearchService implements EntitySearchService, ElasticSearchIndexed {
 
+  public static final SearchFlags DEFAULT_SERVICE_SEARCH_FLAGS =
+      new SearchFlags()
+          .setFulltext(false)
+          .setMaxAggValues(20)
+          .setSkipCache(false)
+          .setSkipAggregates(false)
+          .setSkipHighlighting(false)
+          .setIncludeSoftDeleted(false)
+          .setIncludeRestricted(false);
+
   private static final int MAX_RUN_IDS_INDEXED = 25; // Save the previous 25 run ids in the index.
+  private final OperationContext opContext;
   private final EntityIndexBuilders indexBuilders;
   private final ESSearchDAO esSearchDAO;
   private final ESBrowseDAO esBrowseDAO;
@@ -67,8 +81,10 @@ public class ElasticSearchService implements EntitySearchService, ElasticSearchI
   }
 
   @Override
-  public long docCount(@Nonnull String entityName) {
-    return esSearchDAO.docCount(entityName);
+  public long docCount(@Nonnull String entityName, @Nullable SearchFlags searchFlags) {
+    SearchFlags finalSearchFlags =
+            applyDefaultSearchFlags(searchFlags, null, DEFAULT_SERVICE_SEARCH_FLAGS);
+    return esSearchDAO.docCount(opContext, entityName, finalSearchFlags);
   }
 
   @Override
@@ -118,6 +134,7 @@ public class ElasticSearchService implements EntitySearchService, ElasticSearchI
   @Nonnull
   @Override
   public SearchResult search(
+      @Nonnull OperationContext opContext,
       @Nonnull List<String> entityNames,
       @Nonnull String input,
       @Nullable Filter postFilters,
@@ -125,11 +142,13 @@ public class ElasticSearchService implements EntitySearchService, ElasticSearchI
       int from,
       int size,
       @Nullable SearchFlags searchFlags) {
-    return search(entityNames, input, postFilters, sortCriterion, from, size, searchFlags, null);
+    return search(
+        opContext, entityNames, input, postFilters, sortCriterion, from, size, searchFlags, null);
   }
 
   @Nonnull
   public SearchResult search(
+      @Nonnull OperationContext opContext,
       @Nonnull List<String> entityNames,
       @Nonnull String input,
       @Nullable Filter postFilters,
@@ -142,15 +161,27 @@ public class ElasticSearchService implements EntitySearchService, ElasticSearchI
         String.format(
             "Searching FullText Search documents entityName: %s, input: %s, postFilters: %s, sortCriterion: %s, from: %s, size: %s",
             entityNames, input, postFilters, sortCriterion, from, size));
+    SearchFlags finalSearchFlags =
+        applyDefaultSearchFlags(searchFlags, input, DEFAULT_SERVICE_SEARCH_FLAGS);
     return esSearchDAO.search(
-        entityNames, input, postFilters, sortCriterion, from, size, searchFlags, facets);
+        opContext,
+        entityNames,
+        input,
+        postFilters,
+        sortCriterion,
+        from,
+        size,
+        finalSearchFlags,
+        facets);
   }
 
   @Nonnull
   @Override
   public SearchResult filter(
+      @Nonnull OperationContext opContext,
       @Nonnull String entityName,
       @Nullable Filter filters,
+      @Nonnull SearchFlags searchFlags,
       @Nullable SortCriterion sortCriterion,
       int from,
       int size) {
@@ -158,38 +189,49 @@ public class ElasticSearchService implements EntitySearchService, ElasticSearchI
         String.format(
             "Filtering Search documents entityName: %s, filters: %s, sortCriterion: %s, from: %s, size: %s",
             entityName, filters, sortCriterion, from, size));
-    return esSearchDAO.filter(entityName, filters, sortCriterion, from, size);
+    return esSearchDAO.filter(
+        opContext, entityName, filters, searchFlags, sortCriterion, from, size);
   }
 
   @Nonnull
   @Override
   public AutoCompleteResult autoComplete(
+      @Nonnull OperationContext opContext,
       @Nonnull String entityName,
       @Nonnull String query,
       @Nullable String field,
       @Nullable Filter requestParams,
-      int limit) {
+      int limit,
+      @Nullable SearchFlags searchFlags) {
     log.debug(
         String.format(
             "Autocompleting query entityName: %s, query: %s, field: %s, requestParams: %s, limit: %s",
             entityName, query, field, requestParams, limit));
-    return esSearchDAO.autoComplete(entityName, query, field, requestParams, limit);
+    SearchFlags finalSearchFlags =
+        applyDefaultSearchFlags(searchFlags, query, DEFAULT_SERVICE_SEARCH_FLAGS);
+    return esSearchDAO.autoComplete(
+        opContext, entityName, query, field, requestParams, limit, finalSearchFlags);
   }
 
   @Nonnull
   @Override
   public Map<String, Long> aggregateByValue(
+      @Nonnull OperationContext opContext,
       @Nullable List<String> entityNames,
       @Nonnull String field,
       @Nullable Filter requestParams,
-      int limit) {
+      int limit,
+      @Nullable SearchFlags searchFlags) {
     log.debug(
         "Aggregating by value: {}, field: {}, requestParams: {}, limit: {}",
         entityNames != null ? entityNames.toString() : null,
         field,
         requestParams,
         limit);
-    return esSearchDAO.aggregateByValue(entityNames, field, requestParams, limit);
+    SearchFlags finalSearchFlags =
+        applyDefaultSearchFlags(searchFlags, null, DEFAULT_SERVICE_SEARCH_FLAGS);
+    return esSearchDAO.aggregateByValue(
+        opContext, entityNames, field, requestParams, limit, finalSearchFlags);
   }
 
   @Nonnull
@@ -199,12 +241,15 @@ public class ElasticSearchService implements EntitySearchService, ElasticSearchI
       @Nonnull String path,
       @Nullable Filter filters,
       int from,
-      int size) {
+      int size,
+      @Nullable SearchFlags searchFlags) {
     log.debug(
         String.format(
             "Browsing entities entityName: %s, path: %s, filters: %s, from: %s, size: %s",
             entityName, path, filters, from, size));
-    return esBrowseDAO.browse(entityName, path, filters, from, size);
+    SearchFlags finalSearchFlags =
+        applyDefaultSearchFlags(searchFlags, null, DEFAULT_SERVICE_SEARCH_FLAGS);
+    return esBrowseDAO.browse(opContext, entityName, path, filters, from, size, finalSearchFlags);
   }
 
   @Nonnull
@@ -217,7 +262,10 @@ public class ElasticSearchService implements EntitySearchService, ElasticSearchI
       int start,
       int count,
       @Nullable SearchFlags searchFlags) {
-    return esBrowseDAO.browseV2(entityName, path, filter, input, start, count, searchFlags);
+    SearchFlags finalSearchFlags =
+        applyDefaultSearchFlags(searchFlags, null, DEFAULT_SERVICE_SEARCH_FLAGS);
+    return esBrowseDAO.browseV2(
+        opContext, entityName, path, filter, input, start, count, finalSearchFlags);
   }
 
   @Nonnull
@@ -230,7 +278,10 @@ public class ElasticSearchService implements EntitySearchService, ElasticSearchI
       int start,
       int count,
       @Nullable SearchFlags searchFlags) {
-    return esBrowseDAO.browseV2(entityNames, path, filter, input, start, count, searchFlags);
+    SearchFlags finalSearchFlags =
+        applyDefaultSearchFlags(searchFlags, null, DEFAULT_SERVICE_SEARCH_FLAGS);
+    return esBrowseDAO.browseV2(
+        opContext, entityNames, path, filter, input, start, count, finalSearchFlags);
   }
 
   @Nonnull
@@ -244,6 +295,7 @@ public class ElasticSearchService implements EntitySearchService, ElasticSearchI
   @Nonnull
   @Override
   public ScrollResult fullTextScroll(
+      @Nonnull OperationContext opContext,
       @Nonnull List<String> entities,
       @Nonnull String input,
       @Nullable Filter postFilters,
@@ -259,12 +311,13 @@ public class ElasticSearchService implements EntitySearchService, ElasticSearchI
     SearchFlags flags = Optional.ofNullable(searchFlags).orElse(new SearchFlags());
     flags.setFulltext(true);
     return esSearchDAO.scroll(
-        entities, input, postFilters, sortCriterion, scrollId, keepAlive, size, flags);
+        opContext, entities, input, postFilters, sortCriterion, scrollId, keepAlive, size, flags);
   }
 
   @Nonnull
   @Override
   public ScrollResult structuredScroll(
+      @Nonnull OperationContext opContext,
       @Nonnull List<String> entities,
       @Nonnull String input,
       @Nullable Filter postFilters,
@@ -280,7 +333,7 @@ public class ElasticSearchService implements EntitySearchService, ElasticSearchI
     SearchFlags flags = Optional.ofNullable(searchFlags).orElse(new SearchFlags());
     flags.setFulltext(false);
     return esSearchDAO.scroll(
-        entities, input, postFilters, sortCriterion, scrollId, keepAlive, size, flags);
+        opContext, entities, input, postFilters, sortCriterion, scrollId, keepAlive, size, flags);
   }
 
   public Optional<SearchResponse> raw(@Nonnull String indexName, @Nullable String jsonQuery) {

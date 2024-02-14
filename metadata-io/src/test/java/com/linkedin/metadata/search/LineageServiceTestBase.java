@@ -2,6 +2,7 @@ package com.linkedin.metadata.search;
 
 import static com.linkedin.metadata.Constants.DATASET_ENTITY_NAME;
 import static com.linkedin.metadata.Constants.ELASTICSEARCH_IMPLEMENTATION_ELASTICSEARCH;
+import static io.datahubproject.test.search.SearchTestUtils.mockOpContext;
 import static io.datahubproject.test.search.SearchTestUtils.syncAfterWrite;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -152,9 +153,13 @@ public abstract class LineageServiceTestBase extends AbstractTestNGSpringContext
     _lineageSearchService =
         spy(
             new LineageSearchService(
+                mockOpContext,
                 new SearchService(
                     new EntityDocCountCache(
-                        _entityRegistry, _elasticSearchService, entityDocCountCacheConfiguration),
+                        mockOpContext,
+                        _entityRegistry,
+                        _elasticSearchService,
+                        entityDocCountCacheConfiguration),
                     cachingEntitySearchService,
                     new SimpleRanker()),
                 _graphService,
@@ -194,7 +199,7 @@ public abstract class LineageServiceTestBase extends AbstractTestNGSpringContext
             getCustomSearchConfiguration());
     ESWriteDAO writeDAO =
         new ESWriteDAO(_entityRegistry, _searchClientSpy, _indexConvention, getBulkProcessor(), 1);
-    return new ElasticSearchService(indexBuilders, searchDAO, browseDAO, writeDAO);
+    return new ElasticSearchService(mockOpContext, indexBuilders, searchDAO, browseDAO, writeDAO);
   }
 
   private void clearCache(boolean withLightingCache) {

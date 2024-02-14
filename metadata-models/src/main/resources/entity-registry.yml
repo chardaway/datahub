@@ -552,3 +552,12 @@ plugins:
       supportedEntityAspectNames:
         - entityName: '*'
           aspectName: structuredProperties
+  mutationHooks:
+    - className: 'com.linkedin.metadata.aspect.hooks.OwnerTypeMap'
+      enabled: true
+      supportedOperations:
+        - UPSERT
+        - CREATE
+      supportedEntityAspectNames:
+        - entityName: '*'
+          aspectName: ownership

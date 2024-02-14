@@ -1,10 +1,16 @@
 package com.linkedin.metadata.search.query.request;
 
+import static io.datahubproject.test.search.SearchTestUtils.mockOpContext;
+import static org.mockito.Mockito.mock;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertTrue;
 
 import com.linkedin.metadata.TestEntitySpecBuilder;
+import com.linkedin.metadata.models.registry.EntityRegistry;
+import com.linkedin.metadata.query.SearchFlags;
 import com.linkedin.metadata.search.elasticsearch.query.request.AutocompleteRequestHandler;
+import io.datahubproject.metadata.context.OperationContext;
+import io.datahubproject.test.metadata.context.TestOperationContexts;
 import java.util.List;
 import java.util.Map;
 import org.opensearch.action.search.SearchRequest;
@@ -19,11 +25,15 @@ import org.testng.annotations.Test;
 public class AutocompleteRequestHandlerTest {
   private AutocompleteRequestHandler handler =
       AutocompleteRequestHandler.getBuilder(TestEntitySpecBuilder.getSpec());
+  private OperationContext mockOpContext =
+      TestOperationContexts.systemContextNoSearchAuthorization(mock(EntityRegistry.class));
 
   @Test
   public void testDefaultAutocompleteRequest() {
     // When field is null
-    SearchRequest autocompleteRequest = handler.getSearchRequest("input", null, null, 10);
+    SearchRequest autocompleteRequest =
+        handler.getSearchRequest(
+            mockOpContext, "input", null, null, 10, new SearchFlags().setFulltext(false));
     SearchSourceBuilder sourceBuilder = autocompleteRequest.source();
     assertEquals(sourceBuilder.size(), 10);
     BoolQueryBuilder query = (BoolQueryBuilder) sourceBuilder.query();
@@ -61,7 +71,9 @@ public class AutocompleteRequestHandlerTest {
   @Test
   public void testAutocompleteRequestWithField() {
     // When field is null
-    SearchRequest autocompleteRequest = handler.getSearchRequest("input", "field", null, 10);
+    SearchRequest autocompleteRequest =
+        handler.getSearchRequest(
+            mockOpContext, "input", "field", null, 10, new SearchFlags().setFulltext(false));
     SearchSourceBuilder sourceBuilder = autocompleteRequest.source();
     assertEquals(sourceBuilder.size(), 10);
     BoolQueryBuilder query = (BoolQueryBuilder) sourceBuilder.query();

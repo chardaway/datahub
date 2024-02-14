@@ -11,6 +11,7 @@ import com.linkedin.metadata.models.EntitySpec;
 import com.linkedin.metadata.models.registry.EntityRegistry;
 import com.linkedin.metadata.query.SearchFlags;
 import com.linkedin.metadata.search.elasticsearch.query.request.SearchRequestHandler;
+import io.datahubproject.metadata.context.OperationContext;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -40,6 +41,10 @@ public class ConfigSearchExport extends HttpServlet {
 
   private EntityRegistry getEntityRegistry(WebApplicationContext ctx) {
     return (EntityRegistry) ctx.getBean("entityRegistry");
+  }
+
+  private OperationContext getOperationContext(WebApplicationContext ctx) {
+    return (OperationContext) ctx.getBean("systemOperationContext");
   }
 
   private void writeSearchCsv(WebApplicationContext ctx, PrintWriter pw) {
@@ -81,6 +86,7 @@ public class ConfigSearchExport extends HttpServlet {
               SearchRequest searchRequest =
                   SearchRequestHandler.getBuilder(entitySpec, searchConfiguration, null)
                       .getSearchRequest(
+                          getOperationContext(ctx),
                           "*",
                           null,
                           null,

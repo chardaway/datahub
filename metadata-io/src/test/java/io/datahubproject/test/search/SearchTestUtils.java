@@ -2,6 +2,7 @@ package io.datahubproject.test.search;
 
 import static com.linkedin.datahub.graphql.resolvers.search.SearchUtils.AUTO_COMPLETE_ENTITY_TYPES;
 import static com.linkedin.datahub.graphql.resolvers.search.SearchUtils.SEARCHABLE_ENTITY_TYPES;
+import static org.mockito.Mockito.mock;
 
 import com.datahub.authentication.Authentication;
 import com.datahub.plugins.auth.authorization.Authorizer;
@@ -14,6 +15,7 @@ import com.linkedin.datahub.graphql.resolvers.ResolverUtils;
 import com.linkedin.datahub.graphql.types.SearchableEntityType;
 import com.linkedin.datahub.graphql.types.entitytype.EntityTypeMapper;
 import com.linkedin.metadata.graph.LineageDirection;
+import com.linkedin.metadata.models.registry.EntityRegistry;
 import com.linkedin.metadata.query.SearchFlags;
 import com.linkedin.metadata.query.filter.Filter;
 import com.linkedin.metadata.search.LineageSearchResult;
@@ -22,6 +24,8 @@ import com.linkedin.metadata.search.ScrollResult;
 import com.linkedin.metadata.search.SearchResult;
 import com.linkedin.metadata.search.SearchService;
 import com.linkedin.metadata.search.elasticsearch.update.ESBulkProcessor;
+import io.datahubproject.metadata.context.OperationContext;
+import io.datahubproject.test.metadata.context.TestOperationContexts;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -45,6 +49,7 @@ public class SearchTestUtils {
   }
 
   public static final List<String> SEARCHABLE_ENTITIES;
+  public static final OperationContext mockOpContext;
 
   static {
     SEARCHABLE_ENTITIES =
@@ -52,6 +57,8 @@ public class SearchTestUtils {
             .map(EntityTypeMapper::getName)
             .distinct()
             .collect(Collectors.toList());
+    mockOpContext =
+        TestOperationContexts.systemContextNoSearchAuthorization(mock(EntityRegistry.class));
   }
 
   public static SearchResult searchAcrossEntities(SearchService searchService, String query) {
@@ -61,6 +68,7 @@ public class SearchTestUtils {
   public static SearchResult searchAcrossEntities(
       SearchService searchService, String query, @Nullable List<String> facets) {
     return searchService.searchAcrossEntities(
+        mockOpContext,
         SEARCHABLE_ENTITIES,
         query,
         null,
@@ -78,6 +86,7 @@ public class SearchTestUtils {
       Filter filter,
       List<String> entityNames) {
     return searchService.searchAcrossEntities(
+        mockOpContext,
         entityNames,
         query,
         filter,
@@ -91,6 +100,7 @@ public class SearchTestUtils {
   public static SearchResult searchAcrossCustomEntities(
       SearchService searchService, String query, List<String> searchableEntities) {
     return searchService.searchAcrossEntities(
+        mockOpContext,
         searchableEntities,
         query,
         null,
@@ -107,6 +117,7 @@ public class SearchTestUtils {
   public static SearchResult search(
       SearchService searchService, List<String> entities, String query) {
     return searchService.search(
+        mockOpContext,
         entities,
         query,
         null,
@@ -119,6 +130,7 @@ public class SearchTestUtils {
   public static ScrollResult scroll(
       SearchService searchService, String query, int batchSize, @Nullable String scrollId) {
     return searchService.scrollAcrossEntities(
+        mockOpContext,
         SEARCHABLE_ENTITIES,
         query,
         null,
@@ -131,6 +143,7 @@ public class SearchTestUtils {
 
   public static SearchResult searchStructured(SearchService searchService, String query) {
     return searchService.searchAcrossEntities(
+        mockOpContext,
         SEARCHABLE_ENTITIES,
         query,
         null,
@@ -190,6 +203,11 @@ public class SearchTestUtils {
           @Override
           public Authorizer getAuthorizer() {
             return null;
+          }
+
+          @Override
+          public OperationContext getOperationContext() {
+            return mockOpContext;
           }
         });
   }

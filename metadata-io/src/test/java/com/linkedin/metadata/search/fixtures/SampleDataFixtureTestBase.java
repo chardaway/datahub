@@ -1462,13 +1462,13 @@ public abstract class SampleDataFixtureTestBase extends AbstractTestNGSpringCont
                     try {
                       return getEntityClient()
                           .search(
+                              mockOpContext,
                               "dataset",
                               "*",
                               filter,
                               null,
                               0,
                               100,
-                              AUTHENTICATION,
                               new SearchFlags().setFulltext(fulltextFlag));
                     } catch (RemoteInvocationException e) {
                       throw new RuntimeException(e);
@@ -1927,6 +1927,7 @@ public abstract class SampleDataFixtureTestBase extends AbstractTestNGSpringCont
     SearchResult result =
         getSearchService()
             .searchAcrossEntities(
+                mockOpContext,
                 SEARCHABLE_ENTITIES,
                 query,
                 null,

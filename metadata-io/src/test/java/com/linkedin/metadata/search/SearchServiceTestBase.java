@@ -1,6 +1,7 @@
 package com.linkedin.metadata.search;
 
 import static com.linkedin.metadata.Constants.ELASTICSEARCH_IMPLEMENTATION_ELASTICSEARCH;
+import static io.datahubproject.test.search.SearchTestUtils.mockOpContext;
 import static io.datahubproject.test.search.SearchTestUtils.syncAfterWrite;
 import static org.testng.Assert.assertEquals;
 
@@ -92,7 +93,10 @@ public abstract class SearchServiceTestBase extends AbstractTestNGSpringContextT
     _searchService =
         new SearchService(
             new EntityDocCountCache(
-                _entityRegistry, _elasticSearchService, entityDocCountCacheConfiguration),
+                mockOpContext,
+                _entityRegistry,
+                _elasticSearchService,
+                entityDocCountCacheConfiguration),
             cachingEntitySearchService,
             new SimpleRanker());
   }
@@ -126,7 +130,7 @@ public abstract class SearchServiceTestBase extends AbstractTestNGSpringContextT
             getCustomSearchConfiguration());
     ESWriteDAO writeDAO =
         new ESWriteDAO(_entityRegistry, getSearchClient(), _indexConvention, getBulkProcessor(), 1);
-    return new ElasticSearchService(indexBuilders, searchDAO, browseDAO, writeDAO);
+    return new ElasticSearchService(mockOpContext, indexBuilders, searchDAO, browseDAO, writeDAO);
   }
 
   private void clearCache() {
@@ -138,6 +142,7 @@ public abstract class SearchServiceTestBase extends AbstractTestNGSpringContextT
   public void testSearchService() throws Exception {
     SearchResult searchResult =
         _searchService.searchAcrossEntities(
+            mockOpContext,
             ImmutableList.of(ENTITY_NAME),
             "test",
             null,
@@ -148,7 +153,14 @@ public abstract class SearchServiceTestBase extends AbstractTestNGSpringContextT
     assertEquals(searchResult.getNumEntities().intValue(), 0);
     searchResult =
         _searchService.searchAcrossEntities(
-            ImmutableList.of(), "test", null, null, 0, 10, new SearchFlags().setFulltext(true));
+            mockOpContext,
+            ImmutableList.of(),
+            "test",
+            null,
+            null,
+            0,
+            10,
+            new SearchFlags().setFulltext(true));
     assertEquals(searchResult.getNumEntities().intValue(), 0);
     clearCache();
 
@@ -163,7 +175,14 @@ public abstract class SearchServiceTestBase extends AbstractTestNGSpringContextT
 
     searchResult =
         _searchService.searchAcrossEntities(
-            ImmutableList.of(), "test", null, null, 0, 10, new SearchFlags().setFulltext(true));
+            mockOpContext,
+            ImmutableList.of(),
+            "test",
+            null,
+            null,
+            0,
+            10,
+            new SearchFlags().setFulltext(true));
     assertEquals(searchResult.getNumEntities().intValue(), 1);
     assertEquals(searchResult.getEntities().get(0).getEntity(), urn);
     clearCache();
@@ -179,12 +198,20 @@ public abstract class SearchServiceTestBase extends AbstractTestNGSpringContextT
 
     searchResult =
         _searchService.searchAcrossEntities(
-            ImmutableList.of(), "'test2'", null, null, 0, 10, new SearchFlags().setFulltext(true));
+            mockOpContext,
+            ImmutableList.of(),
+            "'test2'",
+            null,
+            null,
+            0,
+            10,
+            new SearchFlags().setFulltext(true));
     assertEquals(searchResult.getNumEntities().intValue(), 1);
     assertEquals(searchResult.getEntities().get(0).getEntity(), urn2);
     clearCache();
 
-    long docCount = _elasticSearchService.docCount(ENTITY_NAME);
+    long docCount =
+        _elasticSearchService.docCount(ENTITY_NAME, new SearchFlags().setFulltext(false));
     assertEquals(docCount, 2L);
 
     _elasticSearchService.deleteDocument(ENTITY_NAME, urn.toString());
@@ -192,7 +219,14 @@ public abstract class SearchServiceTestBase extends AbstractTestNGSpringContextT
     syncAfterWrite(getBulkProcessor());
     searchResult =
         _searchService.searchAcrossEntities(
-            ImmutableList.of(), "'test2'", null, null, 0, 10, new SearchFlags().setFulltext(true));
+            mockOpContext,
+            ImmutableList.of(),
+            "'test2'",
+            null,
+            null,
+            0,
+            10,
+            new SearchFlags().setFulltext(true));
     assertEquals(searchResult.getNumEntities().intValue(), 0);
   }
 
@@ -223,6 +257,7 @@ public abstract class SearchServiceTestBase extends AbstractTestNGSpringContextT
 
     SearchResult searchResult =
         _searchService.searchAcrossEntities(
+            mockOpContext,
             ImmutableList.of(ENTITY_NAME),
             "test",
             filterWithCondition,
@@ -268,6 +303,7 @@ public abstract class SearchServiceTestBase extends AbstractTestNGSpringContextT
 
     searchResult =
         _searchService.searchAcrossEntities(
+            mockOpContext,
             ImmutableList.of(),
             "test",
             filterWithCondition,
@@ -308,6 +344,7 @@ public abstract class SearchServiceTestBase extends AbstractTestNGSpringContextT
 
     SearchResult searchResult =
         _searchService.searchAcrossEntities(
+            mockOpContext,
             ImmutableList.of(ENTITY_NAME),
             "test",
             filterWithCondition,
@@ -356,6 +393,7 @@ public abstract class SearchServiceTestBase extends AbstractTestNGSpringContextT
 
     searchResult =
         _searchService.searchAcrossEntities(
+            mockOpContext,
             ImmutableList.of(),
             "test",
             filterWithCondition,
@@ -387,6 +425,7 @@ public abstract class SearchServiceTestBase extends AbstractTestNGSpringContextT
 
     SearchResult searchResult =
         _searchService.searchAcrossEntities(
+            mockOpContext,
             ImmutableList.of(ENTITY_NAME),
             "test",
             filterWithCondition,
@@ -435,6 +474,7 @@ public abstract class SearchServiceTestBase extends AbstractTestNGSpringContextT
 
     searchResult =
         _searchService.searchAcrossEntities(
+            mockOpContext,
             ImmutableList.of(),
             "test",
             filterWithCondition,

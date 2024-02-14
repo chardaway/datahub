@@ -27,6 +27,8 @@ import com.linkedin.metadata.search.elasticsearch.update.ESBulkProcessor;
 import com.linkedin.metadata.search.elasticsearch.update.ESWriteDAO;
 import com.linkedin.metadata.utils.elasticsearch.IndexConvention;
 import com.linkedin.metadata.utils.elasticsearch.IndexConventionImpl;
+import io.datahubproject.metadata.context.OperationContext;
+import io.datahubproject.test.metadata.context.TestOperationContexts;
 import java.util.List;
 import javax.annotation.Nonnull;
 import org.opensearch.client.RestHighLevelClient;
@@ -57,6 +59,7 @@ public abstract class TestEntityTestBase extends AbstractTestNGSpringContextTest
   private IndexConvention _indexConvention;
   private SettingsBuilder _settingsBuilder;
   private ElasticSearchService _elasticSearchService;
+  private OperationContext opContext;
 
   private static final String ENTITY_NAME = "testEntity";
 
@@ -64,6 +67,7 @@ public abstract class TestEntityTestBase extends AbstractTestNGSpringContextTest
   public void setup() {
     _entityRegistry = new SnapshotEntityRegistry(new Snapshot());
     _indexConvention = new IndexConventionImpl("es_service_test");
+    opContext = TestOperationContexts.systemContextNoSearchAuthorization(_entityRegistry, _indexConvention);
     _settingsBuilder = new SettingsBuilder(null);
     _elasticSearchService = buildService();
     _elasticSearchService.configure();
@@ -104,21 +108,37 @@ public abstract class TestEntityTestBase extends AbstractTestNGSpringContextTest
             getCustomSearchConfiguration());
     ESWriteDAO writeDAO =
         new ESWriteDAO(_entityRegistry, getSearchClient(), _indexConvention, getBulkProcessor(), 1);
-    return new ElasticSearchService(indexBuilders, searchDAO, browseDAO, writeDAO);
+    return new ElasticSearchService(opContext, indexBuilders, searchDAO, browseDAO, writeDAO);
   }
 
   @Test
   public void testElasticSearchServiceStructuredQuery() throws Exception {
     SearchResult searchResult =
         _elasticSearchService.search(
-            List.of(ENTITY_NAME), "test", null, null, 0, 10, new SearchFlags().setFulltext(false));
+            opContext,
+            List.of(ENTITY_NAME),
+            "test",
+            null,
+            null,
+            0,
+            10,
+            new SearchFlags().setFulltext(false));
     assertEquals(searchResult.getNumEntities().intValue(), 0);
-    BrowseResult browseResult = _elasticSearchService.browse(ENTITY_NAME, "", null, 0, 10);
+    BrowseResult browseResult =
+        _elasticSearchService.browse(
+            ENTITY_NAME, "", null, 0, 10, new SearchFlags().setFulltext(false));
     assertEquals(browseResult.getMetadata().getTotalNumEntities().longValue(), 0);
-    assertEquals(_elasticSearchService.docCount(ENTITY_NAME), 0);
+    assertEquals(
+        _elasticSearchService.docCount(ENTITY_NAME, new SearchFlags().setFulltext(false)), 0);
     assertEquals(
         _elasticSearchService
-            .aggregateByValue(ImmutableList.of(ENTITY_NAME), "textField", null, 10)
+            .aggregateByValue(
+                opContext,
+                ImmutableList.of(ENTITY_NAME),
+                "textField",
+                null,
+                10,
+                new SearchFlags().setFulltext(false))
             .size(),
         0);
 
@@ -134,11 +154,19 @@ public abstract class TestEntityTestBase extends AbstractTestNGSpringContextTest
 
     searchResult =
         _elasticSearchService.search(
-            List.of(ENTITY_NAME), "test", null, null, 0, 10, new SearchFlags().setFulltext(false));
+            opContext,
+            List.of(ENTITY_NAME),
+            "test",
+            null,
+            null,
+            0,
+            10,
+            new SearchFlags().setFulltext(false));
     assertEquals(searchResult.getNumEntities().intValue(), 1);
     assertEquals(searchResult.getEntities().get(0).getEntity(), urn);
     searchResult =
         _elasticSearchService.search(
+            opContext,
             List.of(ENTITY_NAME),
             "foreignKey:Node",
             null,
@@ -148,16 +176,26 @@ public abstract class TestEntityTestBase extends AbstractTestNGSpringContextTest
             new SearchFlags().setFulltext(false));
     assertEquals(searchResult.getNumEntities().intValue(), 1);
     assertEquals(searchResult.getEntities().get(0).getEntity(), urn);
-    browseResult = _elasticSearchService.browse(ENTITY_NAME, "", null, 0, 10);
+    browseResult =
+        _elasticSearchService.browse(
+            ENTITY_NAME, "", null, 0, 10, new SearchFlags().setFulltext(false));
     assertEquals(browseResult.getMetadata().getTotalNumEntities().longValue(), 1);
     assertEquals(browseResult.getGroups().get(0).getName(), "a");
-    browseResult = _elasticSearchService.browse(ENTITY_NAME, "/a", null, 0, 10);
+    browseResult =
+        _elasticSearchService.browse(
+            ENTITY_NAME, "/a", null, 0, 10, new SearchFlags().setFulltext(false));
     assertEquals(browseResult.getMetadata().getTotalNumEntities().longValue(), 1);
     assertEquals(browseResult.getGroups().get(0).getName(), "b");
-    assertEquals(_elasticSearchService.docCount(ENTITY_NAME), 1);
+    assertEquals(
+        _elasticSearchService.docCount(ENTITY_NAME, new SearchFlags().setFulltext(false)), 1);
     assertEquals(
         _elasticSearchService.aggregateByValue(
-            ImmutableList.of(ENTITY_NAME), "textFieldOverride", null, 10),
+            opContext,
+            ImmutableList.of(ENTITY_NAME),
+            "textFieldOverride",
+            null,
+            10,
+            new SearchFlags().setFulltext(false)),
         ImmutableMap.of("textFieldOverride", 1L));
 
     Urn urn2 = new TestEntityUrn("test2", "urn2", "VALUE_2");
@@ -171,20 +209,37 @@ public abstract class TestEntityTestBase extends AbstractTestNGSpringContextTest
 
     searchResult =
         _elasticSearchService.search(
-            List.of(ENTITY_NAME), "test2", null, null, 0, 10, new SearchFlags().setFulltext(false));
+            opContext,
+            List.of(ENTITY_NAME),
+            "test2",
+            null,
+            null,
+            0,
+            10,
+            new SearchFlags().setFulltext(false));
     assertEquals(searchResult.getNumEntities().intValue(), 1);
     assertEquals(searchResult.getEntities().get(0).getEntity(), urn2);
-    browseResult = _elasticSearchService.browse(ENTITY_NAME, "", null, 0, 10);
+    browseResult =
+        _elasticSearchService.browse(
+            ENTITY_NAME, "", null, 0, 10, new SearchFlags().setFulltext(false));
     assertEquals(browseResult.getMetadata().getTotalNumEntities().longValue(), 2);
     assertEquals(browseResult.getGroups().get(0).getName(), "a");
     assertEquals(browseResult.getGroups().get(1).getName(), "b");
-    browseResult = _elasticSearchService.browse(ENTITY_NAME, "/a", null, 0, 10);
+    browseResult =
+        _elasticSearchService.browse(
+            ENTITY_NAME, "/a", null, 0, 10, new SearchFlags().setFulltext(false));
     assertEquals(browseResult.getMetadata().getTotalNumEntities().longValue(), 1);
     assertEquals(browseResult.getGroups().get(0).getName(), "b");
-    assertEquals(_elasticSearchService.docCount(ENTITY_NAME), 2);
+    assertEquals(
+        _elasticSearchService.docCount(ENTITY_NAME, new SearchFlags().setFulltext(false)), 2);
     assertEquals(
         _elasticSearchService.aggregateByValue(
-            ImmutableList.of(ENTITY_NAME), "textFieldOverride", null, 10),
+            opContext,
+            ImmutableList.of(ENTITY_NAME),
+            "textFieldOverride",
+            null,
+            10,
+            new SearchFlags().setFulltext(false)),
         ImmutableMap.of("textFieldOverride", 1L, "textFieldOverride2", 1L));
 
     _elasticSearchService.deleteDocument(ENTITY_NAME, urn.toString());
@@ -192,14 +247,30 @@ public abstract class TestEntityTestBase extends AbstractTestNGSpringContextTest
     syncAfterWrite(getBulkProcessor());
     searchResult =
         _elasticSearchService.search(
-            List.of(ENTITY_NAME), "test2", null, null, 0, 10, new SearchFlags().setFulltext(false));
+            opContext,
+            List.of(ENTITY_NAME),
+            "test2",
+            null,
+            null,
+            0,
+            10,
+            new SearchFlags().setFulltext(false));
     assertEquals(searchResult.getNumEntities().intValue(), 0);
-    browseResult = _elasticSearchService.browse(ENTITY_NAME, "", null, 0, 10);
+    browseResult =
+        _elasticSearchService.browse(
+            ENTITY_NAME, "", null, 0, 10, new SearchFlags().setFulltext(false));
     assertEquals(browseResult.getMetadata().getTotalNumEntities().longValue(), 0);
-    assertEquals(_elasticSearchService.docCount(ENTITY_NAME), 0);
+    assertEquals(
+        _elasticSearchService.docCount(ENTITY_NAME, new SearchFlags().setFulltext(false)), 0);
     assertEquals(
         _elasticSearchService
-            .aggregateByValue(ImmutableList.of(ENTITY_NAME), "textField", null, 10)
+            .aggregateByValue(
+                opContext,
+                ImmutableList.of(ENTITY_NAME),
+                "textField",
+                null,
+                10,
+                new SearchFlags().setFulltext(false))
             .size(),
         0);
   }
@@ -208,7 +279,14 @@ public abstract class TestEntityTestBase extends AbstractTestNGSpringContextTest
   public void testElasticSearchServiceFulltext() throws Exception {
     SearchResult searchResult =
         _elasticSearchService.search(
-            List.of(ENTITY_NAME), "test", null, null, 0, 10, new SearchFlags().setFulltext(true));
+            opContext,
+            List.of(ENTITY_NAME),
+            "test",
+            null,
+            null,
+            0,
+            10,
+            new SearchFlags().setFulltext(true));
     assertEquals(searchResult.getNumEntities().intValue(), 0);
 
     Urn urn = new TestEntityUrn("test", "urn1", "VALUE_1");
@@ -223,14 +301,27 @@ public abstract class TestEntityTestBase extends AbstractTestNGSpringContextTest
 
     searchResult =
         _elasticSearchService.search(
-            List.of(ENTITY_NAME), "test", null, null, 0, 10, new SearchFlags().setFulltext(true));
+            opContext,
+            List.of(ENTITY_NAME),
+            "test",
+            null,
+            null,
+            0,
+            10,
+            new SearchFlags().setFulltext(true));
     assertEquals(searchResult.getNumEntities().intValue(), 1);
     assertEquals(searchResult.getEntities().get(0).getEntity(), urn);
 
-    assertEquals(_elasticSearchService.docCount(ENTITY_NAME), 1);
+    assertEquals(
+        _elasticSearchService.docCount(ENTITY_NAME, new SearchFlags().setFulltext(false)), 1);
     assertEquals(
         _elasticSearchService.aggregateByValue(
-            ImmutableList.of(ENTITY_NAME), "textFieldOverride", null, 10),
+            opContext,
+            ImmutableList.of(ENTITY_NAME),
+            "textFieldOverride",
+            null,
+            10,
+            new SearchFlags().setFulltext(false)),
         ImmutableMap.of("textFieldOverride", 1L));
 
     Urn urn2 = new TestEntityUrn("test2", "urn2", "VALUE_2");
@@ -244,14 +335,27 @@ public abstract class TestEntityTestBase extends AbstractTestNGSpringContextTest
 
     searchResult =
         _elasticSearchService.search(
-            List.of(ENTITY_NAME), "test2", null, null, 0, 10, new SearchFlags().setFulltext(true));
+            opContext,
+            List.of(ENTITY_NAME),
+            "test2",
+            null,
+            null,
+            0,
+            10,
+            new SearchFlags().setFulltext(true));
     assertEquals(searchResult.getNumEntities().intValue(), 1);
     assertEquals(searchResult.getEntities().get(0).getEntity(), urn2);
 
-    assertEquals(_elasticSearchService.docCount(ENTITY_NAME), 2);
+    assertEquals(
+        _elasticSearchService.docCount(ENTITY_NAME, new SearchFlags().setFulltext(false)), 2);
     assertEquals(
         _elasticSearchService.aggregateByValue(
-            ImmutableList.of(ENTITY_NAME), "textFieldOverride", null, 10),
+            opContext,
+            ImmutableList.of(ENTITY_NAME),
+            "textFieldOverride",
+            null,
+            10,
+            new SearchFlags().setFulltext(false)),
         ImmutableMap.of("textFieldOverride", 1L, "textFieldOverride2", 1L));
 
     _elasticSearchService.deleteDocument(ENTITY_NAME, urn.toString());
@@ -259,13 +363,27 @@ public abstract class TestEntityTestBase extends AbstractTestNGSpringContextTest
     syncAfterWrite(getBulkProcessor());
     searchResult =
         _elasticSearchService.search(
-            List.of(ENTITY_NAME), "test2", null, null, 0, 10, new SearchFlags().setFulltext(true));
+            opContext,
+            List.of(ENTITY_NAME),
+            "test2",
+            null,
+            null,
+            0,
+            10,
+            new SearchFlags().setFulltext(true));
     assertEquals(searchResult.getNumEntities().intValue(), 0);
 
-    assertEquals(_elasticSearchService.docCount(ENTITY_NAME), 0);
+    assertEquals(
+        _elasticSearchService.docCount(ENTITY_NAME, new SearchFlags().setFulltext(false)), 0);
     assertEquals(
         _elasticSearchService
-            .aggregateByValue(ImmutableList.of(ENTITY_NAME), "textField", null, 10)
+            .aggregateByValue(
+                opContext,
+                ImmutableList.of(ENTITY_NAME),
+                "textField",
+                null,
+                10,
+                new SearchFlags().setFulltext(false))
             .size(),
         0);
   }
